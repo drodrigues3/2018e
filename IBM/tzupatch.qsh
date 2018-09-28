@@ -1,0 +1,447 @@
+#!/usr/bin/qsh
+# Version 1.8 2011/10/10
+#-------------------------------------------------------------------
+# (c) Copyright International Business Machines 2007
+#
+# NOTE: This is a non-warranted program.  Please see this link for details:
+#    http://www-128.ibm.com/developerworks/java/jdk/dst/dstlicense.html
+#
+# *** WARNINGS ***
+#  1.Applying IBM product maintenance which contains down level time zone
+#    data will remove the updates applied by this tool.  In such cases you
+#    will need to re-run this tool to restore the time zone data to the
+#    latest level.  Updates made to the Java time zone data by this tool
+#    are not managed by any of the formal change control mechanisms for
+#    servicing IBM software products.
+#
+#  2.Updating the Java time zone data for a VM in use by some process on
+#    the system may, in rare cases, cause unpredictable behavior in that
+#    other process.  To warn you of this potential, this tool will look
+#    for such VM-dependent processes before applying any updates.
+#
+# File: tzupatch.qsh
+#
+# Purpose: update time zone information for all i5/OS SDKs
+#          containing IBM Technology for Java VM (IBM VM)
+#          or Classic VM for Java (since mid-2007)
+#
+# NOTE: Dependencies:
+#     * Must be running as root user (not explicitly tested)
+#     * Tool's home directory must contain TimeZoneInfo/zi
+#         directory structure suitable for use by jar -u
+#     * zi/ZoneInfoMappings file bytes 12-22 must be ASCII
+#         'tzdatayyyyr' where
+#                         yyyy is four-digit year and
+#                         r  is alphabetic revision
+#     * i.e. 'tzdata2006p' or 'tzdata2007a'
+#
+#     * for a Classic VM installation to be updated, you must ensure
+#        that necessary PTFs are applied.
+#          in V5R3 you must be at group PTF level #17 or higher
+#          in V5R4 you must be at group PTF level #9 or higher
+#-------------------------------------------------------------------
+TZI_FILE=zi/ZoneInfoMappings
+OUR_TZI_ROOT=${PWD}/TimeZoneInfo
+OUR_TZI_FILE="${OUR_TZI_ROOT}/$TZI_FILE"
+OUR_TZI_KEYNAME="TimeZoneInfo/${TZI_FILE}"
+TMP_ROOT=/tmp/TZUPATCH.$$
+OUR_TZI_VERSION=''
+TZUPATCH_LOGNAME='TZUPATCH_init'
+SEEN_WARNINGS=''
+TOTAL_UPDATED=0
+TOTAL_ABORTED=0
+TOTAL_CURRENT=0
+TOTAL_NEWER=0
+
+function pause() { local junk=''; read junk; return; }
+
+function logit()  
+{
+        # -q suppresses stderr output
+        # -m <method> adds function name to output
+        local c='' dash_t='' dash_s='-s'
+        dash_t="-t $TZUPATCH_LOGNAME"
+        while getopts m:q c
+        do case $c in
+                m) dash_t="${dash_t}:${OPTARG}";;
+                q) dash_s='';
+        esac done
+        shift $OPTIND-1
+        /usr/bin/logger $dash_t $dash_s $*
+}
+
+function vmsrunning()
+{
+        local vmjob=''
+        for vmjob in $(/usr/bin/system dspjvmjob 2>/dev/null \
+                        | /usr/bin/tail +6 | /usr/bin/cut -c3-40 \
+                        | /usr/bin/sed -e 's/\([^ ]*\) *\([^ ]*\) *\([^ ]*\) *.*/\3\/\2\/\1/') ;
+        {
+                if /usr/bin/system dspjoblog $vmjob 2>/dev/null | /usr/bin/grep -q 'JVAB56D' ; then
+                        return 0;
+                fi
+        }
+        return 1;
+}
+
+function setup() {
+        getsyslock;
+        OUR_TZI_VERSION=$(peekvers $OUR_TZI_FILE);
+        if [[ -z $OUR_TZI_VERSION ]] ; then
+                logit -m setup "...ERROR Failed to find our own version?"
+                cleanup 3;
+        fi
+        if ! (test -d $TMP_ROOT || /usr/bin/mkdir -p $TMP_ROOT) ; then
+                logit -m setup "...ERROR  Failed to create working directory $TMP_ROOT -- quitting"
+                cleanup 4;       
+        fi
+        TZUPATCH_LOGNAME="TZUPATCH_${OUR_TZI_VERSION}"
+        logit -qm setup "LEAVING SETUP"
+        return 0
+}
+
+function peekvers()
+{
+        local result;
+        if test -f $1 ; then
+                result=$(/usr/bin/head -1 $1 | /usr/bin/cut -b12-22) 
+                if [[ -z $result ]] ; then return 1; fi;
+                print $result;
+                return 0;
+        else
+                return 1;
+        fi
+}
+
+function cleanup()
+{
+        local rc=0
+        if [[ $# -ne 0 ]]; then let rc=$1 ; fi
+        freesyslock;
+        exit $rc;
+}
+
+function show_warnings_once()
+{
+        if [[ ! -z $SEEN_WARNINGS ]] ; then return; fi
+        print ""
+        print "*** WARNINGS ***"
+        print " 1.Applying IBM product maintenance which contains down level time zone"
+        print "   data will remove the updates applied by this tool.  In such cases you"
+        print "   will need to re-run this tool to restore the time zone data to the"
+        print "   latest level.  Updates made to the Java time zone data by this tool"
+        print "   are not managed by any of the formal change control mechanisms for"
+        print "   servicing IBM software products."
+        print " 2.Updating the Java time zone data for a VM in use by some process on"
+        print "   the system may, in rare cases, cause unpredictable behavior in that"
+        print "   other process.  To warn you of this potential, this tool will look"
+        print "   for such VM-dependent processes before applying any updates."
+        print ""
+        print "Press enter to continue..."
+        pause
+        print "Searching for processes using Java..."
+        if vmsrunning ; then                                  
+                print "   **** i5/OS ADDITIONAL WARNING -- FOUND Java IN USE **** "
+                print "   It appears that Java is in use on this system."
+                print ""
+                print "     You may choose to continue with this update.  However,"
+                print "     you are strongly advised to end and restart any Java"
+                print "     applications you are using as soon as is practical."
+                print ""
+                print "Press enter to continue..."
+                pause
+                logit -qm update "Warned user about active VMs"
+        else
+                print "   ...No running VMs were found"
+        fi
+        SEEN_WARNINGS='yes'
+}
+
+function jarupdatehandler()
+{
+        local jarf=$1 oldver=$2 tagname=$3 wrkjar='' ans='' bkup='' junk='' 
+        tmpdir="../TEMP.$$"
+        bkup=${jarf}_tzupatchbackup_$oldver
+        jarname=$(basename $jarf .jar)
+
+        print "Preparing update of $tagname"
+        print "   ...from '$oldver' to '$OUR_TZI_VERSION'"
+
+        if cd $OUR_TZI_ROOT \
+                && test -d zi \
+                && /usr/bin/rm -rf $tmpdir \
+                && /usr/bin/mkdir $tmpdir \
+                && /usr/bin/cp $jarf $tmpdir \
+                && /usr/bin/cp $jarf $bkup \
+                && /usr/bin/jar -uf ${tmpdir}/${jarname}.jar zi \
+               ;
+        then
+                print "   ...preparations completed.  Update ready to apply."
+                print ""
+                logit -qm update "UPDATE READY for $tagname from $oldver to $OUT_TZI_VERSION"
+
+                PS3='Select action by number:'
+                select ans in 'Perform update now' 'Abort update' ; do
+                        case $ans in
+                                Perform*)
+                                        print -n "Performing update processing... please wait..."
+                                        if /usr/bin/rm -f $jarf \
+                                                && /usr/bin/cp ${tmpdir}/${jarname}.jar $jarf \
+                                                && /usr/bin/rm -rf $tmpdir \
+                                                && cd - \
+                                                ;
+                                        then
+                                                print "COMPLETE"
+                                                logit -qm update "UNDOCMD: cd ${jarf%/*}; cp ${bkup##*/} ${jarf##*/}; cd -"
+                                                logit -qm update "UPDATE_OK: $jarf FROM $oldver TO $OUR_TZI_VERSION"
+                                                let TOTAL_UPDATED+=1
+                                                return 0;
+                                        else
+                                                logit -m update "FATAL ERROR... final replacement copy failed"
+                                                cleanup 10;
+                                        fi
+                                        ;;
+
+                                Abort*)
+                                        print -n "ABORTING the update (please wait...) "
+                                        if /usr/bin/rm -f $bkup && /usr/bin/rm -rf $tmpdir && cd - ; then
+                                                print "completed"
+                                                logit -qm update "UPDATE aborted: $jarf remains at $oldver"
+                                                let TOTAL_ABORTED+=1
+                                                return 0;
+                                        else
+                                                logit -m update "FATAL ERROR -- abort remnants remain in $tmpdir"
+                                                cleanup 11;
+                                        fi
+                                        return 1;
+                                        ;;
+                                *)
+                                        continue;
+                                        ;;
+                        esac
+                done
+        else
+                logit -m update "FATAL ERROR -- failed to prepare update for ${jarf%%/jre/lib/${jarname}.jar} -- quitting"
+                cleanup 12;
+        fi
+}
+
+function directoryupdatehandler()
+{
+        local dirf=$1 oldver=$2 tagname=$3 ans='' bkup=''
+        tmpdir="../TEMP.$$"
+        bkup=${dirf}_tzupatchbackup_${oldver}.jar
+
+        print "Preparing update of $tagname"
+        print "   ...from '$oldver' to '$OUR_TZI_VERSION'"
+
+        if cd $OUR_TZI_ROOT \
+                && test -d zi \
+                && /usr/bin/rm -f $bkup \
+                && /usr/bin/rm -rf $tmpdir \
+                && /usr/bin/mkdir $tmpdir \
+                && /usr/bin/cp -R $tagname $tmpdir \
+                && /usr/bin/find $tmpdir -name 'QP*' -exec /usr/bin/rm {} \; \
+                && /usr/bin/jar -cfM0 $bkup -C $tmpdir/zi . \
+               ;
+        then
+                print "   ...preparations completed.  Update ready to apply."
+                print ""
+                logit -qm update "UPDATE READY for $tagname from $oldver to $OUT_TZI_VERSION"
+
+                PS3='Select action by number:'
+                select ans in 'Perform update now' 'Abort update' ; do
+                        case $ans in
+                                Perform*)
+                                        print -n "Performing update processing... please wait..."
+                                        if /usr/bin/cp -R zi ${tagname}/.. \
+                                                && cd - \
+                                                ;
+                                        then
+                                                print "COMPLETE"
+                                                logit -qm update "UNDOCMD: jar -xf $bkup"
+                                                logit -qm update "UPDATE_OK: $dirf FROM $oldver TO $OUR_TZI_VERSION"
+                                                let TOTAL_UPDATED+=1
+                                                return 0;
+                                        else
+                                                logit -m update "FATAL ERROR... final replacement copy failed"
+                                                cleanup 13;
+                                        fi
+                                        ;;
+
+                                Abort*)
+                                        print -n "ABORTING the update (please wait...) "
+                                        if /usr/bin/rm -f $bkup && /usr/bin/rm -rf $tmpdir && cd - ; then
+                                                print "completed"
+                                                logit -qm update "UPDATE aborted: $dirf remains at $oldver"
+                                                let TOTAL_ABORTED+=1
+                                                return 0;
+                                        else
+                                                logit -m update "FATAL ERROR -- abort remnants remain in $tagname"
+                                                cleanup 14;
+                                        fi
+                                        return 1;
+                                        ;;
+                                *)
+                                        continue;
+                                        ;;
+                        esac
+                done
+        else
+                logit -m update "FATAL ERROR -- failed to prepare update -- quitting"
+                cleanup 15;
+        fi
+}
+
+function tokcounter()
+{
+        print "$#"
+}
+
+function mainproc()
+{
+        local shortname='' vers='' num=0 curnum=0 zero='' testzero=''
+        # make sure we have been invoked as expected
+        # if not, cd to right directory and exec
+        zero=$0
+        testzero=${zero##*/}
+        if [[ "$zero" != "./$testzero" ]] ; then
+                print -u2 "tzupatch Invocation error..."
+                print -u2 "   Invoked as '$0'"
+                print -u2 "   Expected invocation './$testzero'"
+                print -u2 "   Trying a cd to ${zero%/*} and exec './$testzero'"
+                print -u2 ""
+                cd ${zero%/*}
+                exec ./$testzero
+        fi
+
+        setup || exit 1;
+
+        print "Welcome to the tzupatch tool for i5/OS -- version $OUR_TZI_VERSION"
+        print "********************************************************************"
+        print "This tool allows you to update the timezone information in supported"
+        print "Java SDKs found on your system."
+        print ""
+        print "Finding VM jar files that might need this timezone update (please wait)"
+        corejars=$(/usr/bin/find -P /QOpenSys/QIBM/ProdData/JavaVM -path '*/jre/lib/core.jar')
+        zidirectories=$(/usr/bin/find -P /QOpenSys/QIBM/ProdData/JavaVM -path '*/zi/ZoneInfoMappings')
+        classicjars=$(/usr/bin/find -P /QIBM/ProdData/Java400 -path '*/lib/resources.jar')
+        imbeddedjars=$(/usr/bin/find -P /QIBM/ProdData/OS400/Java400 -path '*/lib/resources.jar')
+        let num1=$(tokcounter $corejars)+$(tokcounter $zidirectories)
+        let num2=$(tokcounter $classicjars)+$(tokcounter $imbeddedjars)
+        let num=$num1+$num2
+        alljars="$corejars $zidirectories $imbeddedjars $classicjars"
+
+        if [[ $num -gt 0 ]] ; then
+                show_warnings_once;
+                print "Found $num1 IBM Technology for Java VMs and $num2 Classic VMs... Entering update loop"
+                for dojar in $alljars ; {
+                        let curnum+=1
+                        shortname=$(dirname $dojar)
+                        targetname=$(basename $dojar) 
+                        print ""
+                        print "  ($curnum of $num) '$shortname/$targetname'"
+                        if [[ $targetname = "ZoneInfoMappings" ]] ; then
+                                vers=$(peekvers $dojar)
+                        else
+                                vers=$(cd $TMP_ROOT && /usr/bin/jar -xf $dojar $TZI_FILE && peekvers $TZI_FILE && rm -rf $TZI_FILE && cd - )
+                        fi
+                        if [[ -z $vers ]] ; then
+                                logit -m main "ERROR - failed to get version from $shortname"
+                                return 1;
+                        else
+                                print "   ...found version '$vers'";
+                                if test "$vers" \< "$OUR_TZI_VERSION" ; then
+                                        print "   ...NEEDS UPDATE ('$vers' < '$OUR_TZI_VERSION')"
+                                        logit -qm main "TZUPATCH_TRY_UPDATE: $shortname \( $vers \< $OUR_TZI_VERSION \)"
+                                        if [[ $targetname = "ZoneInfoMappings" ]] ; then
+                                                directoryupdatehandler $dojar $vers $shortname
+                                        else
+                                                jarupdatehandler $dojar $vers $shortname
+                                        fi
+                                elif test "$vers" = "$OUR_TZI_VERSION" ; then
+                                        print "   ...found UP TO DATE -- skipping it"
+                                        logit -qm main "TZUPATCH_IS_CURRENT: $shortname $vers"
+                                        let TOTAL_CURRENT+=1
+                                else
+                                        let TOTAL_NEWER+=1
+                                        print "   ...found as NEWER than OUR TOOL -- skipping"
+                                        logit -qm main "TZUPATCH_OBSOLETE: $shortname at '$vers' -- newer than tool?"
+                                fi
+                        fi
+                }
+        
+                print ""
+                print "$TZUPATCH_LOGNAME Completed processing normally:"
+                printf "  %d VMs found already up-to-date\n" $TOTAL_CURRENT 
+                printf "  %d VMs updated to '%s'\n" $TOTAL_UPDATED $OUR_TZI_VERSION
+                printf "  %d VMs almost updated (updates prepared but not applied)\n" $TOTAL_ABORTED
+                printf "  %d VMs were found 'newer' than '%s'\n" $TOTAL_NEWER $OUR_TZI_VERSION
+                logit -qm main "Ending normally"
+                cleanup 0
+        else
+                print "No VMs found on this machine."
+                logit -qm main "No VMs found"
+                cleanup 0
+        fi
+}
+
+function freesyslock()
+{
+        local tstval=''
+        tstval=$(/usr/bin/cat /tmp/TZUPATCHLOCK)
+        if [[ "$tstval" = "lockpid.$$" ]] ; then
+                x=$(/usr/bin/rm -f /tmp/TZUPATCHLOCK);
+                return $?
+        fi
+        print "ERROR: trying to free unowned lock"
+        return 2;
+}
+
+function getsyslock()
+{
+        local pid='' jobid=''
+        if test -f /tmp/TZUPATCHLOCK ; then
+                pid=$(/usr/bin/cat /tmp/TZUPATCHLOCK);
+                pid=${pid##lockpid.};
+                if /usr/bin/ps -p $pid >/dev/null ; then
+                        jobid=$(/usr/bin/getjobid $pid);
+                        print "TZUPATCH IS LOCKED by active process $pid $jobid";
+                        cleanup 1;
+                fi
+                lockdate=$(/usr/bin/ls -lT /tmp/TZUPATCHLOCK | /usr/bin/cut -c46-65);
+                print -n "...removing stale tzupatch lock (set by $pid around $lockdate)";
+                if /usr/bin/rm -f /tmp/TZUPATCHLOCK ; then
+                        print " REMOVED"
+                else
+                        logit -qm getsyslock "FATAL ERROR: Unable to remove stale /tmp/TZUPATCHLOCK"
+                        print "Unable to remove stale lock file -- quitting"
+                        cleanup 2;
+                fi
+        fi
+
+        if ! test -e /tmp/TZUPATCHLOCK \
+                && /usr/bin/echo "lockpid.$$" > /tmp/TZUPATCHLOCK \
+                && /usr/bin/grep -q $$ /tmp/TZUPATCHLOCK \
+                ;
+        then
+                return 0;
+        else
+                cleanup 3;
+        fi
+}
+
+mainproc;
+
+exit 0;
+
+#--------------------------------------------------
+# Revision 1.8  2011/10/10  18:00:00  esch
+# Revision 1.7  2009/06/16  18:00:00  jhaverma
+# Revision 1.6  2007/08/21  17:50:29  blair
+# Revision 1.5  2007/08/21  17:48:36  blair
+# Revision 1.4  2007/01/29  15:51:10  blair
+# Revision 1.3  2007/01/17  09:52:26  blair
+# Revision 1.2  2007/01/17  09:50:28  blair
+# Revision 1.1  2007/01/17  08:12:39  blair
+#-------------------------------------------------

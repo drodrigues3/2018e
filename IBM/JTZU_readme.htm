@@ -1,0 +1,361 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
+<html>
+<head>
+<meta name="generator" content=
+"HTML Tidy for Linux/x86 (vers 7 December 2008), see www.w3.org">
+<title>IBM Time Zone Update Utility for Java</title>
+</head>
+<body>
+<h1>IBM Time Zone Update Utility for Java (JTZU)</h1>
+<h1>Readme</h1>
+<p><b>Last updated 27 September 2011.</b></p>
+<p>(c) Copyright International Business Machines Corporation, 1999,
+2011. All rights reserved.</p>
+<p>U.S. Government Users Restricted Rights - Use, duplication or
+disclosure restricted by GSA ADP Schedule Contract with IBM
+Corp.</p>
+<h1>Contents</h1>
+<div class="head1"><a class="toclink" id="ToC_1" href="#wq1" name=
+"ToC_1">Introduction</a></div>
+<div class="head1"><a class="toclink" id="ToC_2" href="#wq2" name=
+"ToC_2">Downloading and installing JTZU</a></div>
+<div class="head1"><a class="toclink" id="ToC_3" href="#wq3" name=
+"ToC_3">Getting started with JTZU</a></div>
+<div class="head1"><a class="toclink" id="ToC_4" href="#wq4" name=
+"ToC_4">Advanced features</a></div>
+<div class="head1"><a class="toclink" id="ToC_5" href="#wq5" name=
+"ToC_5">Restoring changes applied by JTZU</a></div>
+<div class="head1"><a class="toclink" id="ToC_6" href="#wq6" name=
+"ToC_6">Known limitations</a></div>
+<div class="head1"><a class="toclink" id="ToC_7" href="#wq7" name=
+"ToC_7">JTZU reference information</a></div>
+
+
+<p><a name="wq1" id="wq1"></a></p>
+<h1 id="wq1">Introduction</h1>
+<p>The IBM Time Zone Update Utility for Java (JTZU) updates the time zone 
+information in IBM-supplied releases and service refreshes of the Java SDK and JRE. 
+With this tool, you can adopt changes to DST when you are unable to apply a service refresh, 
+or when a service refresh is not yet available that incorporates the time zone changes you need.</p>
+<h2>How JTZU works</h2>
+<p>Java SDKs and JREs calculate their time zone information using a set of rules for time zone offsets 
+contained in tables. When you use JTZU to update installed SDKs or JREs, the time zone tables are replaced.</p>
+<p>JTZU obtains updated time zone information from the Olson time zone database. 
+Olson data updates are identified by a unique string; for example, <tt>tzdata2009x</tt>, 
+where <tt>x</tt> is one of a series of refreshes delivered in 2009. Each version of JTZU is given 
+a similar identifier to reflect the level of time zone data. For example, JTZU v1.6.9f 
+delivers the time zone information available in  <tt>tzdata2009f</tt>.</p> 
+</p>When JTZU is processing an IBM-supplied SDK or JRE, it checks the level of the time zone data 
+contained in the time zone tables. If the SDK or JRE contains an earlier level of time zone information, 
+JTZU updates the SDK or JRE. For example, JTZU v1.6.9f will update any JRE that has a time zone data 
+level of tzdata2009e or earlier.</p>
+<p>JTZU uses the same time zone updates that are incorporated into IBM-supplied releases and service 
+refreshes of the SDK and JRE. See <a href="http://www.ibm.com/developerworks/java/jdk/dst/olson_table.html">
+Olson time zone updates for Java JRE and SDK service refreshes for IBM products</a></p>
+<h2>Supported platforms</h2>
+<ul>
+<li>AIX PPC 32-bit / 64-bit</li>
+<li>HP-UX PA-RISC 32-bit / 64-bit</li>
+<li>HP-UX Itanium 32-bit / 64-bit</li>
+<li>Solaris SPARC 32-bit / 64-bit</li>
+<li>Solaris AMD64 32-bit / 64-bit</li>
+<li>Linux AMD64/EM64T</li> 
+<li>Linux PPC 32-bit / 64-bit</li>
+<li>Linux on system Z 31-bit / 64-bit</li>
+<li>Windows Intel 32-bit / 64-bit</li>
+<li>Windows AMD64/EM64T</li>
+<li>z/OS 31-bit / 64-bit</li>
+</ul>
+<p>Note that HP-UX and Solaris platforms are supported only when embedded with an IBM product.</p>
+<p>JTZU does not support Java on IBM i platforms. To update Java on IBM i, 
+refer to <a href="http://www-01.ibm.com/support/docview.wss?uid=swg21254841">Updating Java for Daylight Saving Time (DST) changes on IBM i platforms.</a></p>
+<h2>SDKs and JREs detected and patched by JTZU</h2>
+<ul>
+<li>IBM 1.4.2, 5.0, 6, and 7 releases in Windows, AIX, Linux and z/OS platforms</li>
+<li>IBM-modified Java 1.4.2, 5.0, 6, and 7 SDKs and JREs on Solaris and HP-UX shipped as part of an IBM-licensed product</li>
+<li>IBM-modified Java 1.4.1 SDKs on the Solaris platform, shipped as part of WebSphere Application Server 5.1.0 on Solaris</li>
+</ul>
+<h2>SDKs and JREs detected but not patched by JTZU</h2>
+<ul>
+<li>Any unmodified Sun-supplied (Windows, Linux, Solaris) or HP-supplied (HP-UX) base Java releases, including 
+instances shipped in products from companies that have been subsequently acquired by IBM, for example, Informix IDS.</li>
+<li>Any instances supplied by other Java Technology providers.</li>
+</ul>
+<p>Note: These SDKs and JREs are detected by the JTZU tool when running with the <tt>DISCOVERONLY=YES</tt> option in command-line mode. 
+When running interactively, JTZU does not detect or patch these SDKs and JREs.</p>
+
+<p><a name="wq2" id="wq2"></a></p>
+<h1 id="wq2">Downloading and installing JTZU</h1>
+<p>JTZU is available from IBM developerWorks: <a href="http://www.ibm.com/developerworks/java/jdk/dst/jtzu.html">JTZU download page</a>. 
+Follow these instructions to download and install the tool.</p>
+<ol>
+<li>Create a local directory for JTZU; for example, <tt>/tmp/jtzu</tt> or <tt>c:\jtzu</tt>.</li>
+<li>Download the zip file to the JTZU directory. Use binary transfer mode, where applicable.</li>
+<li>Extract the files. Use the jar utility where available: <tt>jar -xvf filename</tt>, where <tt>filename</tt> is the compressed zip file.</li>
+<li>On AIX, z/OS, Linux, Solaris, and HP-UX platforms, you must change the file permissions to allow JTZU to run from the command line. At a shell prompt, type <tt>chmod 755 runjtzu.sh</tt></li>
+</ol>
+
+<p><a name="wq3" id="wq3"></a></p>
+<h1 id="wq3">Getting started with JTZU</h1>
+<h2>Prerequisites</h2>
+<p>Note these prerequisites:</p>
+<ul>
+<li>You need a Java SDK or JRE installation to run JTZU.</li>
+<li>You must run JTZU as a user with root or administrator privileges to allow it to 
+find and update all the Java instances on the machine.</li>
+<li>When you update an SDK or JRE using JTZU, ensure that the SDK or JRE is not being 
+used by any applications. If the SDK or JRE is in use, you might encounter errors as described in <a class="toclink" id="ToC_6" href="#wq6" name=
+"ToC_6">Known limitations</a>.</li>
+<li>To run the utility using the GUI on AIX, z/OS, Linux, Solaris, and HP-UX platforms, 
+you must be running an X server.</li>
+</ul>
+<h2>Specifying the JRE used to run JTZU</h2>
+<p>You must decide which JRE the JTZU tool will use to run the update process. 
+This JRE can be the same one that you want JTZU to update. When you have decided 
+which JRE to use, you must update the JTZU settings file to specify the location of the JRE. 
+Edit the JTZU settings file and set <tt>JAVA_HOME</tt> to match the directory path of the chosen JRE. 
+The name of the settings file and program file for your platform is shown in the table:</p>
+<table border="1" summary="List of paths for Java versions.">
+    <tr>
+		<th>Platform</th>
+        <th>JTZU settings file</th>
+		<th>JTZU program file </th>
+    </tr>
+    <tr>
+        <td>Windows</td>
+        <td><tt>runjtzuenv.bat</tt></td>
+		<td><tt>runjtzu.bat</tt></td>
+    </tr>
+	<tr>
+        <td>Other platforms</td>
+        <td><tt>runjtzuenv.sh</tt></td>
+		<td><tt>runjtzu.sh</tt></td>
+    </tr>
+</table>
+
+<h2>Deciding how to update your Java SDKs and JREs</h2>
+<p>You can use JTZU in a number of ways to search for and update your Java SDKs and JREs. 
+You might need to do an initial search for all the SDKs and JREs on your systems 
+and validate their existing time zone information. You can tailor the search faciltity 
+to search specific directories on your system.</p> 
+<p>When you are ready to update your SDKs or JREs, you can run JTZU to update individual 
+instances or multiple instances on a local or network drive. The update process 
+can be run automatically without user intervention, or you can control which JREs and SDKs are updated by JTZU.</p>
+<p>The method you use will depend on the number and variety of Java instances that you must update. 
+The flexibility built into the tool means that you can adapt the way it runs to suit your needs.</p>
+<p>A number of scenarios are provided as examples for using JTZU: 
+<ul>
+<li><b><div class="head1"><a class="toclink" id="ToC_9" href="#wq9" name=
+"ToC_9">How to update an SDK or JRE at a known location</a></div></b>.</li>
+<li><b><div class="head1"><a class="toclink" id="ToC_10" href="#wq10" name=
+"ToC_10">How to search for SDKs and JREs</a></div></b>.</li>
+<li><b><div class="head1"><a class="toclink" id="ToC_11" href="#wq11" name=
+"ToC_11">How to search for SDKs and JREs, updating supported releases</a></div></b>.</li>
+</ul>
+<p>JTZU records information about the search paths, the JREs that are detected, 
+and the JREs that are updated in <tt>LogFile.log</tt>. Errors are also logged to this file.</p>
+
+<p><a name="wq9" id="wq9"></a></p>
+<h3 ID="wq9">How to update an SDK or JRE at a known location</h3>
+<p>Follow these steps:</p>
+<ol>
+<li>Stop the JRE that you are going to update.</li>
+<li>Edit the JTZU settings file:
+	<ul>
+	<li>Set <tt>NOGUI=false</tt></li>
+	<li>The <tt>DISCOVERONLY</tt> setting is not used.</li>
+	</ul></li>
+<li>Run JTZU.</li>
+<li>When prompted, select <b>Interactive mode</b>. Click <b>Start</b>.</li>
+<li>Enter the location of the JRE in the text box or use the Browse button to select one.</li>
+<li>Click <b>Update</b> to perform the time zone update for the selected JRE.</li>
+<li>Restart the JRE.</li>
+</ol>
+<p>You do not need to reboot your system after updating SDKs or JREs.</p>
+
+<p><a name="wq10" id="wq10"></a></p>
+<h3 ID="wq10">How to search for SDKs and JREs</h3>
+<p>Use this procedure to search for all JREs and SDKs on your system. 
+The results are written to <tt>Logfile.log</tt>. Any SDKs and JREs that can be 
+updated will be shown in the <tt>SDKList.txt</tt> file. The search process can take a long time, 
+depending on the size of your system. It is not necessary to stop your JREs during the discovery process.</p>
+<ol> 
+<li>Edit the JTZU settings file:
+	<ul>
+	<li>Set <tt>NOGUI=true.</tt></li>
+	<li>Set <tt>DISCOVERONLY=true.</tt></li>
+	</ul></li>
+<li>Ensure that the <tt>DirectorySearch.txt</tt> file contains the value <tt>all</tt> as the only record. 
+This step is important on z/OS because the file can be corrupted.</li>
+<li>Run JTZU.</li>
+</ol>
+<p>By default, JTZU searches the entire file system.</p>
+
+
+<p><a name="wq11" id="wq11"></a></p>
+<h3 ID="wq11">How to search for SDKs and JREs, updating supported releases</h3>
+<p>This procedure uses the JTZU GUI to locate all JREs and SDKs on a system 
+and update supported instances, where necessary.</p>
+<ol>
+<li>Stop all active JREs on the system.</li>
+<li>Edit the JTZU settings file:
+	<ul>
+	<li>Set <tt>NOGUI=false</tt>.</li>
+	<li>The <tt>DISCOVERONLY</tt> setting is not used.</li>
+	</ul></li>
+<li>Run JTZU.</li>
+<li>When prompted, select <b>Non-interactive mode</b>. Click <b>Start</b>.</li>
+<li>Progress is displayed in a new window. When complete, restart the JREs.</li>
+</ol>
+
+<p>The GUI displays all SDKs and JREs supported for updating in the top section, 
+and all SDKs and JREs that require updating in the bottom section. 
+The GUI does not display SDKs and JREs that JTZU cannot patch.
+You do not need to reboot your system after updating SDKs or JREs.</p>
+
+<p><a name="wq4" id="wq4"></a></p>
+<h1 ID="wq4">Advanced features</h1>
+<p>You can use the advanced features of JTZU to perform these tasks:</p>
+<ul>
+<li><b><div class="head1"><a class="toclink" id="ToC_12" href="#wq12" name=
+"ToC_12">Selective searching</a></div></b>.</li>
+<li><b><div class="head1"><a class="toclink" id="ToC_13" href="#wq13" name=
+"ToC_13">Selective updating</a></div></b>.</li>
+<li><b><div class="head1"><a class="toclink" id="ToC_14" href="#wq14" name=
+"ToC_14">Silent updating</a></div></b>.</li>
+</ul>
+<p>Each feature can be used independently or they can be used together.</p>
+
+<p><a name="wq12" id="wq12"></a></p>
+<h2 ID="wq12">Selective searching</h2>
+<p>You can perform a selective search of your directories by configuring the <tt>DirectorySearch.txt</tt> file. 
+Edit this file to restrict where JTZU searches for JREs on your system. 
+Each entry must begin on a new line. You can use network drives or mount points to specify remote systems.
+<h3>Adding and removing directories</h3>
+<p>You can add and remove locations from the search by placing a + or - before a directory name. 
+There must not be a space between the + or - and the name of the directory.</p>
+<p>For example, on Windows, a <tt>DirectorySearch.txt</tt> file containing the directories 
+shown causes JTZU to recursively search the contents of the <tt>c:\programs</tt> directory, 
+excluding <tt>c:\programs\ibm\java142</tt> and all its subdirectories. </p>
+<ul>
+<li><tt>+c:\programs</tt></li>
+<li><tt>-c:\programs\ibm\java142</tt></li>
+</ul>
+<p>On other platforms, the equivalent format of the <tt>DirectorySearch.txt</tt> file must be:</p>
+<ul>
+<li><tt>+/usr</tt></li>
+<li><tt>-/usr/bin</tt></li>
+</ul>
+<h3>The <tt>all</tt> keyword</h3>
+<p>If the <tt>all</tt> entry is the first entry in the file, JTZU searches everywhere on the system 
+except for specified exclusions. If the <tt>all</tt> entry is not in the file, or is not the first entry 
+in the file, JTZU will searches only in specified locations.</p>
+<p>For example, on Windows, a <tt>DirectorySearch.txt</tt> file containing the directories shown 
+causes JTZU to search the entire system except the <tt>c:\workarea</tt> directory.</p>
+<ul>
+<li><tt>all</tt></li>
+<li><tt>-c:\workarea</tt></li>
+</ul>
+<p>On other platforms, the equivalent format of the <tt>DirectorySearch.txt</tt> file must be:</p>
+<ul>
+<li><tt>all</tt></li>
+<li><tt>-/proc</tt></li>
+</ul>
+<h3>Directories to exclude on AIX, z/OS, Linux, Solaris, and HP-UX platforms</h3>
+<p>By default, JTZU does not search the <tt>/proc</tt> directory. This directory is excluded 
+because it contains dynamically generated directories that might form an infinite loop. 
+You might also consider excluding the <tt>/dev</tt> and <tt>/sys</tt> directories depending on your platform. 
+In addition, the <tt>/etc</tt>, <tt>/tmp</tt>, and <tt>/var</tt> directories are unlikely to contain JREs.</p>
+
+<p><a name="wq13" id="wq13"></a></p>
+<h2 ID="wq13">Selective updating</h2>
+<p>To update a subset of SDKs or JREs on your system, you must first run JTZU in discovery 
+mode to produce a complete list of SDKs and JREs on your system. Follow the steps detailed 
+in the scenario <a class="toclink" id="ToC_10" href="#wq10" name=
+"ToC_10">How to search for SDKs and JREs</a>. JTZU records all the SDKs and JREs that 
+can be updated in the <tt>SDKList.txt</tt> file.</p>
+<ol>
+<li>Edit the <tt>SDKList.txt</tt> file and remove any entries that you do not want to patch.</li>
+<li>Stop the JREs that are going to be patched.</li>
+<li>Run JTZU with the JTZU settings file containing the values:  
+		<ul>
+		<li><tt>NOGUI=true</tt></li>
+		<li><tt>DISCOVERONLY=false</tt> </li>
+		</ul>
+<li>Restart your JREs.</li>
+</ol>
+
+<p><a name="wq14" id="wq14"></a></p>
+<h2 ID="wq14">Silent updating</h2>
+<p>You can update all the instances supported for updating without any user 
+interaction by running JTZU in <tt>SilentPatch</tt> mode. </p>
+<ol>
+<li>Stop the JREs that are going to be updated.</li>
+<li>Run JTZU with the JTZU settings file containing the values:  
+		<ul>
+		<li><tt>NOGUI=true</tt></li>
+		<li><tt>DISCOVERONLY=false</tt></li>
+		<li><tt>SILENTPATCH=true</tt></li>
+		</ul></li>
+<li>Restart your JREs.</li>
+</ol>
+
+<p><a name="wq5" id="wq5"></a></p>
+<h1 ID="wq5">Restoring changes applied by JTZU</h1>
+
+<p><b>Java 1.4.2 and 5.0 (AIX, Linux, Windows, and z/OS):</b> JTZU makes a backup of the <tt>core.jar</tt> file in the <tt>jre/lib</tt> directory.</p>
+<ol>
+<li>Ensure that the <tt>jre/lib/core.jar_jtzubackup</tt> file exists.</li>
+<li>Delete the <tt>jre/lib/core.jar</tt> file.</li>
+<li>Rename the <tt>jre/lib/core.jar_jtzubackup</tt> file to <tt>jre/lib/core.jar</tt>.</li>
+</ol>
+<p><b>Java 6 and 7 (AIX, Linux, Windows, and z/OS) and Java 1.4.2, 5.0, 6 and 7 (HP-UX and Solaris):</b> JTZU makes a backup of the <tt>zi</tt> directory in the <tt>jre/lib</tt> directory. </p>
+<ol>
+<li>Ensure that the <tt>jre/lib/zi_jtzubackup</tt> directory exists.</li>
+<li>Delete the <tt>jre/lib/zi</tt> directory.</li>
+<li>Rename the <tt>jre/lib/zi_jtzubackup</tt> directory to <tt>jre/lib/zi</tt>.</li>
+</ol>
+
+<p><a name="wq6" id="wq6"></a></p>
+<h1 ID="wq6">Known limitations</h1>
+See <a href="http://www-01.ibm.com/support/docview.wss?uid=swg21250503">Java Daylight Saving Time: Known problems and workarounds</a> 
+for general information relating to DST. The following limitations apply to JTZU:
+
+<p><b>Patching the JRE used to run JTZU</b></p>
+<p>On AIX, Linux, Windows, and z/OS, attempting to patch the JRE used to run JTZU more than once  
+results in the following error message:</p>
+<tt>java.lang.InternalError: jzentry == 0, jzfile = 3259568, total = 2859, name = C:\cn142-20060217\sdk\jre\lib\core.jar,</tt>
+<br><tt>i = 2541, message = invalid LOC header (bad signature)</tt>
+<br><tt>at java.util.zip.ZipFile$2.nextElement(ZipFile.java(Compiled Code))</tt>
+<br><tt>at java.util.jar.JarFile$1.nextElement(JarFile.java(Compiled Code))</tt>
+<br><tt>at JTZUVersionCheck.retrieveCurrentVersion(JTZUVersionCheck.java(Compiled Code))</tt>
+<br><tt>at JTZUVersionCheck.<init>(JTZUVersionCheck.java:43)</tt>
+<br><tt>at JTZUUpdater.updateTimeZoneInformation(JTZUUpdater.java:65)</tt>
+<br><tt>at JTZUInteractive$JTZUInteractiveWorkerThread.updateTimeZoneInformation(JTZUInteractive.java:322)</tt>
+<br><tt>at JTZUInteractive$JTZUInteractiveWorkerThread.run(JTZUInteractive.java:186)</tt>
+<br>
+<p>Avoid this error by restarting JTZU after patching the JRE for the first time.</p>
+<p><b>JREs might be flagged as corrupt after patching</b></p>
+<p>If you patch a JRE using SMP/E on z/OS or installp on AIX, 
+the SMP/E or installp utilities might flag the JRE as corrupt or inconsistent. 
+The message is expected because you have modified the JRE.</p>
+<p>For further problems and information on diagnosing problems, see <a href="http://www-01.ibm.com/support/docview.wss?uid=swg21249759">IBM Time Zone Update Utility (JTZU): known problems and diagnostic information.</a> </p>
+<p><a name="wq7" id="wq7"></a></p>
+<h1 ID="wq7">JTZU reference information</h1>
+<p>You can use these settings in the JTZU settings file:</p>
+<dl COMPACT>
+	<dt><b>JAVA_HOME</b></dt>
+	<dd>Location of the JRE that you will use to run the utility. It must be a JRE or the JRE contained in an SDK.</dd>
+	<dt><b>NOGUI</b></dt>
+	<dd>When set to true, JTZU runs in command-line mode. When set to false, JTZU runs with a graphical user interface. The default is false.</dd>
+	<dt><b>DISCOVERONLY</b></dt>
+	<dd>When set to true, JTZU discovers IBM JREs and stores their locations in the <tt>SDKList.txt</tt> file. When set to false, JTZU discovers IBM JREs and updates 
+them based on their locations in the <tt>SDKList.txt</tt> file. The default is true.</dd>
+	<dt><b>SILENTPATCH</b></dt>
+	<dd>When set to true, JTZU updates the SDKs and JREs without any user interaction in command-line 'Patch' mode.</dd>
+	<dt><b>BACKWARDCOMPATIBILITY</b></dt>
+	<dd>When set to true, Version 1.4 and above SDKs and JREs patched by JTZU can be used with the old 3-character time zone identifiers. 
+See <a href="http://www-01.ibm.com/support/docview.wss?uid=swg21250503">Java Daylight Saving Time: Known problems and workarounds</a> for more information.</dd>
+</dl>
+</body>
+</html>
