@@ -1,1 +1,0 @@
-/opt/ibm/java-x86_64-70/jre	tzdata2018e
